@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#FAFAFA] text-textDark font-inter;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-poppins font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+
+  .glass-card-orange {
+    background: rgba(255, 240, 224, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 122, 0, 0.15);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* Animations helper */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Glass panel styling */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.shadow-premium {
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.04), 
+              0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.shadow-card-hover {
+  box-shadow: 0 20px 40px -15px rgba(255, 122, 0, 0.1), 
+              0 1px 8px rgba(0, 0, 0, 0.03);
+}
