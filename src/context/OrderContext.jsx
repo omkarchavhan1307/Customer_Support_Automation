@@ -1,8 +1,24 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { GoogleGenAI } from '@google/genai';
+import { restaurants, menuItems } from '../data/mockData';
 
 const OrderContext = createContext();
 
 export const useOrder = () => useContext(OrderContext);
+
+// Initialize the GenAI client with environment API key or user provided key
+const apiKey = process.env.API_KEY || '';
+let ai = null;
+if (apiKey) {
+  try {
+    ai = new GoogleGenAI({ apiKey });
+    console.log("BiteCraft AI: GoogleGenAI client successfully initialized.");
+  } catch (err) {
+    console.error("BiteCraft AI: Failed to initialize GoogleGenAI:", err);
+  }
+} else {
+  console.warn("BiteCraft AI: API_KEY is not defined. Chatbot will fall back to static friendly messages.");
+}
 
 const INITIAL_ORDERS = [
   {
@@ -223,6 +239,96 @@ export const OrderProvider = ({ children }) => {
     return orders.find(o => o.id === activeId && o.restaurantId === selectedRestaurantId);
   };
 
+  const getAIChatbotResponse = async (userText) => {
+    try {
+      if (!ai) {
+        console.warn("BiteCraft AI: GoogleGenAI client is not initialized. Using fallback response.");
+        return "Sorry, I couldn't process that right now — please ask our staff.";
+      }
+
+      // Gather current restaurant and menu info
+      const currentRest = restaurants.find(r => r.id === selectedRestaurantId);
+      const restName = currentRest ? currentRest.name : "BiteCraft Restaurant";
+      const restSpecial = currentRest ? currentRest.specialty : "";
+      const restLocation = currentRest ? currentRest.location : "";
+      const restHours = currentRest ? currentRest.openingHours : "";
+      const restSpecialItem = currentRest ? `${currentRest.todaySpecial.name} (Price: ₹${currentRest.todaySpecial.price}): ${currentRest.todaySpecial.description}` : "";
+
+      // Scoped order data
+      const activeOrderId = activeOrderIds[selectedRestaurantId];
+      const activeOrder = orders.find(o => o.id === activeOrderId && o.restaurantId === selectedRestaurantId);
+      const restaurantOrders = orders.filter(o => o.restaurantId === selectedRestaurantId);
+      const restMenuItems = menuItems.filter(item => item.restaurantId === selectedRestaurantId);
+
+      // Construct brief details about orders and menu
+      const orderInfo = activeOrder ? `
+Active Order Details:
+- Order ID: #${activeOrder.id}
+- Status: ${activeOrder.status}
+- Est. Wait/Prep Time: ${activeOrder.estPrepTime} minutes
+- Queue Position: #${activeOrder.queuePosition}
+- Chef: ${activeOrder.chef}
+- Customer Name: ${activeOrder.customer.name}
+- Items: ${activeOrder.items.map(i => `${i.name} x${i.quantity}`).join(', ')}
+- Total: ₹${activeOrder.total}
+` : "No active order for this customer session currently.";
+
+      const otherOrdersInfo = restaurantOrders.length > 0 ? `
+Other orders registered at this restaurant (use if client asks about an order ID like #${restaurantOrders.map(o => o.id).join(', #')}):
+${restaurantOrders.map(o => `- Order #${o.id}: Status is "${o.status}", Prep Time is ${o.estPrepTime}m, Queue is #${o.queuePosition}, Chef is ${o.chef}, Customer: ${o.customer.name}`).join('\n')}
+` : "";
+
+      const menuInfo = `
+Menu items:
+${restMenuItems.map(item => `- ${item.name} (${item.isVeg ? 'Veg' : 'Non-Veg'}, Price: ₹${item.price}, Prep time: ${item.prepTime}m) - ${item.description} (${item.available ? 'Available' : 'Sold Out'})`).join('\n')}
+`;
+
+      const promptContext = `You are a helpful restaurant customer support chatbot. Answer briefly and clearly using this placeholder order info:
+
+Restaurant Profile:
+- Name: ${restName}
+- Specialty: ${restSpecial}
+- Location: ${restLocation}
+- Hours: ${restHours}
+- Today's Chef Special: ${restSpecialItem}
+
+=== ORDERS CONTEXT ===
+${orderInfo}
+${otherOrdersInfo}
+
+=== MENU CONTEXT ===
+${menuInfo}
+
+Rules:
+- Keep the response short, concise, and friendly (maximum 3 sentences).
+- Answer on behalf of ${restName}.
+- Refer to active orders and details above when asked about order status, wait times, or menu options.
+- If they ask for today's offers/deals, mention coupon code "AICRAFT15" for 15% discount.
+`;
+
+      // Conversational memory from state
+      const recentChat = chatMessagesByRestaurant[selectedRestaurantId] || [];
+      const chatHistory = recentChat.slice(-8).map(msg => ({
+        role: msg.sender === 'bot' ? 'model' : 'user',
+        parts: [{ text: msg.text }]
+      }));
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          { role: 'user', parts: [{ text: promptContext }] },
+          ...chatHistory,
+          { role: 'user', parts: [{ text: userText }] }
+        ]
+      });
+
+      return response.text || "Sorry, I couldn't process that right now — please ask our staff.";
+    } catch (error) {
+      console.error("BiteCraft AI Response Generation Error:", error);
+      return "Sorry, I couldn't process that right now — please ask our staff.";
+    }
+  };
+
   return (
     <OrderContext.Provider value={{
       orders,
@@ -237,7 +343,8 @@ export const OrderProvider = ({ children }) => {
       updateOrderStatus,
       sendChatMessage,
       clearChat,
-      getActiveOrder
+      getActiveOrder,
+      getAIChatbotResponse
     }}>
       {children}
     </OrderContext.Provider>

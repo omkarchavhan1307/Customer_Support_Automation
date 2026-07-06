@@ -5,7 +5,7 @@ import { Bot, Send, RefreshCw, HelpCircle, Sparkles, Clock, Compass } from 'luci
 import { Link } from 'react-router-dom';
 
 export default function ChatbotPage() {
-  const { chatMessages, sendChatMessage, orders, activeOrderIds, selectedRestaurantId, clearChat } = useOrder();
+  const { chatMessages, sendChatMessage, clearChat, getAIChatbotResponse } = useOrder();
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
@@ -16,48 +16,21 @@ export default function ChatbotPage() {
     }
   }, [chatMessages, isTyping]);
 
-  const handleSendMessage = (text) => {
+  const handleSendMessage = async (text) => {
     if (!text.trim()) return;
     sendChatMessage("customer", text);
     setInputValue('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      let botResponse = "I'm sorry, I couldn't understand that. You can ask about order status, wait times, today's special, or table bookings.";
-      const query = text.toLowerCase();
-
-      const orderMatch = query.match(/#?(\d{4})/);
-      if (orderMatch) {
-        const orderId = orderMatch[1];
-        const matchedOrder = orders.find(o => o.id === orderId && o.restaurantId === selectedRestaurantId);
-        if (matchedOrder) {
-          botResponse = `Order #${matchedOrder.id} update:\n\n• Status: ${matchedOrder.status}\n• Est. Ready: ${matchedOrder.estPrepTime > 0 ? `${matchedOrder.estPrepTime} minutes` : 'Ready!'}\n• Queue Position: ${matchedOrder.queuePosition}\n• Chef: ${matchedOrder.chef}`;
-        } else {
-          botResponse = `No order with ID #${orderId} found at this restaurant. Please double-check your ID.`;
-        }
-      } else {
-        for (const node of chatbotQA) {
-          if (node.keywords.some(keyword => query.includes(keyword))) {
-            botResponse = node.answer;
-            break;
-          }
-        }
-        if (query.includes("where is my order") || query.includes("track my order")) {
-          const activeId = activeOrderIds[selectedRestaurantId];
-          if (activeId) {
-            const activeOrder = orders.find(o => o.id === activeId && o.restaurantId === selectedRestaurantId);
-            if (activeOrder) {
-              botResponse = `Your active order #${activeOrder.id} is currently ${activeOrder.status}.\nEst. completion: ${activeOrder.estPrepTime} minutes.\nQueue Position: #${activeOrder.queuePosition}.`;
-            }
-          } else {
-            botResponse = "You don't have an active order here. Type your 4-digit Order ID to track it.";
-          }
-        }
-      }
-
+    try {
+      const botResponse = await getAIChatbotResponse(text);
       sendChatMessage("bot", botResponse);
+    } catch (error) {
+      console.error("ChatbotPage AI integration error:", error);
+      sendChatMessage("bot", "Sorry, I couldn't process that right now — please ask our staff.");
+    } finally {
       setIsTyping(false);
-    }, 1200);
+    }
   };
 
   const quickPrompts = [
